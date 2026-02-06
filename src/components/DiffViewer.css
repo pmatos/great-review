@@ -72,6 +72,9 @@
 }
 
 .hunk-header {
+  position: relative;
+  display: flex;
+  align-items: center;
   padding: 4px 12px;
   background-color: rgba(49, 50, 68, 0.6);
   font-family: var(--font-mono);

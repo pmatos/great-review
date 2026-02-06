@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DiffLine, DiffHunk, DiffFile, HunkReview, LineType, FileStatus } from "../types";
 import { getHunkKey } from "../state";
+import HunkToolbar from "./HunkToolbar";
 import "./DiffViewer.css";
 
 function DiffLineRow({ line, filePath, hunkIndex }: { line: DiffLine; filePath: string; hunkIndex: number }) {
@@ -41,7 +42,8 @@ interface DiffHunkViewProps {
   onHunkAction: (action: "approve" | "comment" | "reject") => void;
 }
 
-function DiffHunkView({ hunk, hunkIndex, filePath, review, isFocused }: DiffHunkViewProps) {
+function DiffHunkView({ hunk, hunkIndex, filePath, review, isFocused, onHunkAction }: DiffHunkViewProps) {
+  const [headerHovered, setHeaderHovered] = useState(false);
   const classes = ["diff-hunk"];
   if (review) {
     classes.push(`review-${review.decision}`);
@@ -52,7 +54,21 @@ function DiffHunkView({ hunk, hunkIndex, filePath, review, isFocused }: DiffHunk
 
   return (
     <div className={classes.join(" ")} data-hunk-key={getHunkKey(filePath, hunkIndex)}>
-      <div className="hunk-header">{hunk.header}</div>
+      <div
+        className="hunk-header"
+        onMouseEnter={() => setHeaderHovered(true)}
+        onMouseLeave={() => setHeaderHovered(false)}
+      >
+        <span>{hunk.header}</span>
+        {headerHovered && (
+          <HunkToolbar
+            onApprove={() => onHunkAction("approve")}
+            onComment={() => onHunkAction("comment")}
+            onReject={() => onHunkAction("reject")}
+            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+          />
+        )}
+      </div>
       {hunk.lines.map((line, i) => (
         <DiffLineRow key={i} line={line} filePath={filePath} hunkIndex={hunkIndex} />
       ))}
