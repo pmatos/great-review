@@ -1,0 +1,54 @@
+.bottom-bar {
+  height: 44px;
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 16px;
+  border-top: 1px solid var(--border-color);
+  justify-content: space-between;
+}
+
+.bottom-bar .totals {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  font-size: 0.85em;
+}
+
+.bottom-bar .approved-count {
+  color: var(--color-approved);
+}
+
+.bottom-bar .commented-count {
+  color: var(--color-commented);
+}
+
+.bottom-bar .rejected-count {
+  color: var(--color-rejected);
+}
+
+.bottom-bar .copy-btn {
+  padding: 8px 20px;
+  background: var(--color-accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.bottom-bar .copy-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.bottom-bar .copy-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bottom-bar .copy-btn.copied {
+  background: var(--color-approved);
+  transition: background 0.2s ease;
+}

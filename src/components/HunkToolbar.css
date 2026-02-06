@@ -1,0 +1,42 @@
+.hunk-toolbar {
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+.hunk-toolbar button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+}
+
+.hunk-toolbar .approve-btn:hover {
+  color: var(--color-approved);
+  background: rgba(166, 227, 161, 0.15);
+}
+
+.hunk-toolbar .comment-btn:hover {
+  color: var(--color-commented);
+  background: rgba(249, 226, 175, 0.15);
+}
+
+.hunk-toolbar .reject-btn:hover {
+  color: var(--color-rejected);
+  background: rgba(243, 139, 168, 0.15);
+}

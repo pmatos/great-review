@@ -4,3 +4,61 @@
   height: 100vh;
   overflow: hidden;
 }
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.file-tree-panel {
+  width: 250px;
+  min-width: 200px;
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.diff-panel {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+.feedback-overlay {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 12px 16px;
+  z-index: 50;
+}
+
+.feedback-overlay .hunk-reference {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-rejected);
+  padding: 20px;
+}
+
+.loading-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  padding: 20px;
+}
+
+.selection-toolbar {
+  position: fixed;
+  z-index: 200;
+}
