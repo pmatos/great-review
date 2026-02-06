@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { DiffFile, HunkReview } from "../types";
+import { DiffFile, HunkAnnotation } from "../types";
 import { getHunkKey } from "../state";
 import "./FileTree.css";
 
 interface FileTreeProps {
   files: DiffFile[];
-  reviews: Record<string, HunkReview>;
+  annotations: Record<string, HunkAnnotation[]>;
   focusedFile?: string;
   onFileClick: (filePath: string) => void;
 }
@@ -40,12 +40,13 @@ function buildTree(files: DiffFile[]): TreeNode {
 
 function getFileProgress(
   file: DiffFile,
-  reviews: Record<string, HunkReview>
+  annotations: Record<string, HunkAnnotation[]>
 ): { total: number; reviewed: number } {
   const total = file.hunks.length;
   let reviewed = 0;
   for (let i = 0; i < total; i++) {
-    if (reviews[getHunkKey(file.path, i)]) {
+    const anns = annotations[getHunkKey(file.path, i)];
+    if (anns && anns.length > 0) {
       reviewed++;
     }
   }
@@ -54,13 +55,13 @@ function getFileProgress(
 
 function DirectoryNode({
   node,
-  reviews,
+  annotations,
   focusedFile,
   onFileClick,
   depth,
 }: {
   node: TreeNode;
-  reviews: Record<string, HunkReview>;
+  annotations: Record<string, HunkAnnotation[]>;
   focusedFile?: string;
   onFileClick: (filePath: string) => void;
   depth: number;
@@ -86,7 +87,7 @@ function DirectoryNode({
             <DirectoryNode
               key={dir.fullPath}
               node={dir}
-              reviews={reviews}
+              annotations={annotations}
               focusedFile={focusedFile}
               onFileClick={onFileClick}
               depth={depth + 1}
@@ -96,7 +97,7 @@ function DirectoryNode({
             <FileNode
               key={fileNode.fullPath}
               node={fileNode}
-              reviews={reviews}
+              annotations={annotations}
               focusedFile={focusedFile}
               onFileClick={onFileClick}
               depth={depth + 1}
@@ -110,19 +111,19 @@ function DirectoryNode({
 
 function FileNode({
   node,
-  reviews,
+  annotations,
   focusedFile,
   onFileClick,
   depth,
 }: {
   node: TreeNode;
-  reviews: Record<string, HunkReview>;
+  annotations: Record<string, HunkAnnotation[]>;
   focusedFile?: string;
   onFileClick: (filePath: string) => void;
   depth: number;
 }) {
   const file = node.file!;
-  const { total, reviewed } = getFileProgress(file, reviews);
+  const { total, reviewed } = getFileProgress(file, annotations);
   const complete = total > 0 && reviewed === total;
 
   return (
@@ -141,7 +142,7 @@ function FileNode({
 
 export default function FileTree({
   files,
-  reviews,
+  annotations,
   focusedFile,
   onFileClick,
 }: FileTreeProps) {
@@ -156,7 +157,7 @@ export default function FileTree({
         <DirectoryNode
           key={dir.fullPath}
           node={dir}
-          reviews={reviews}
+          annotations={annotations}
           focusedFile={focusedFile}
           onFileClick={onFileClick}
           depth={0}
@@ -166,7 +167,7 @@ export default function FileTree({
         <FileNode
           key={fileNode.fullPath}
           node={fileNode}
-          reviews={reviews}
+          annotations={annotations}
           focusedFile={focusedFile}
           onFileClick={onFileClick}
           depth={0}

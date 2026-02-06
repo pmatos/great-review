@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useReviewState, getHunkKey, getReviewProgress, isAllReviewed } from "./state";
 import { fetchDiff, fetchRepoInfo, fetchStartupArgs, copyToClipboard } from "./tauri-api";
 import { generatePrompt } from "./prompt-generator";
-import type { RejectMode } from "./types";
+import type { HunkAnnotation, RejectMode } from "./types";
 import TopBar from "./components/TopBar";
 import BottomBar from "./components/BottomBar";
 import FileTree from "./components/FileTree";
@@ -10,6 +10,11 @@ import DiffViewer from "./components/DiffViewer";
 import HunkToolbar from "./components/HunkToolbar";
 import FeedbackInput from "./components/FeedbackInput";
 import "./App.css";
+
+let annotationCounter = 0;
+function nextAnnotationId(): string {
+  return `ann-${Date.now()}-${++annotationCounter}`;
+}
 
 interface ActiveFeedback {
   hunkKey: string;
@@ -41,7 +46,6 @@ function App() {
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbar | null>(null);
   const diffPanelRef = useRef<HTMLDivElement>(null);
 
-  // Load diff and repo info on mount
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -67,7 +71,6 @@ function App() {
     return () => { cancelled = true; };
   }, [dispatch]);
 
-  // Build flat list of all hunk keys for navigation
   const allHunkKeys = useMemo(() => {
     const keys: string[] = [];
     for (const file of state.files) {
@@ -84,14 +87,25 @@ function App() {
     return { filePath: key.slice(0, sep), hunkIndex: parseInt(key.slice(sep + 2), 10) };
   }, []);
 
-  // Hunk action handler
   const handleHunkAction = useCallback(
     (filePath: string, hunkIndex: number, action: "approve" | "comment" | "reject") => {
       const key = getHunkKey(filePath, hunkIndex);
       dispatch({ type: "SET_FOCUSED_HUNK", key });
 
       if (action === "approve") {
-        dispatch({ type: "SET_REVIEW", key, review: { decision: "approved" } });
+        const hasSelection = selectionToolbar?.hunkIndex === hunkIndex &&
+            selectionToolbar?.filePath === filePath;
+        const selectedLines = hasSelection && selectionToolbar.startLine != null && selectionToolbar.endLine != null
+          ? { start: selectionToolbar.startLine, end: selectionToolbar.endLine }
+          : undefined;
+        const selectedText = hasSelection ? selectionToolbar.selectedText : undefined;
+        const annotation: HunkAnnotation = {
+          id: nextAnnotationId(),
+          decision: "approved",
+          selectedText,
+          selectedLines,
+        };
+        dispatch({ type: "ADD_ANNOTATION", key, annotation });
         setActiveFeedback(null);
         setSelectionToolbar(null);
       } else {
@@ -112,7 +126,6 @@ function App() {
     [dispatch, selectionToolbar],
   );
 
-  // Feedback submission
   const handleFeedbackSubmit = useCallback(
     (comment: string, rejectMode?: RejectMode) => {
       if (!activeFeedback) return;
@@ -120,37 +133,56 @@ function App() {
       const selectedLines = startLine != null && endLine != null
         ? { start: startLine, end: endLine }
         : undefined;
-      if (mode === "comment") {
-        dispatch({
-          type: "SET_REVIEW",
-          key: hunkKey,
-          review: { decision: "commented", comment, selectedText, selectedLines },
-        });
-      } else {
-        dispatch({
-          type: "SET_REVIEW",
-          key: hunkKey,
-          review: { decision: "rejected", comment, rejectMode, selectedText, selectedLines },
-        });
-      }
+      const annotation: HunkAnnotation = {
+        id: nextAnnotationId(),
+        decision: mode === "comment" ? "commented" : "rejected",
+        comment,
+        rejectMode: mode === "reject" ? rejectMode : undefined,
+        selectedText,
+        selectedLines,
+      };
+      dispatch({ type: "ADD_ANNOTATION", key: hunkKey, annotation });
       setActiveFeedback(null);
     },
     [activeFeedback, dispatch],
   );
 
-  // Copy prompt handler
-  const handleCopyPrompt = useCallback(() => {
-    const prompt = generatePrompt(state.files, state.reviews);
-    copyToClipboard(prompt);
-  }, [state.files, state.reviews]);
+  const handleRemoveAnnotation = useCallback(
+    (hunkKey: string, annotationId: string) => {
+      dispatch({ type: "REMOVE_ANNOTATION", key: hunkKey, annotationId });
+    },
+    [dispatch],
+  );
 
-  // File click handler
+  const handleCopyPrompt = useCallback(() => {
+    const prompt = generatePrompt(state.files, state.annotations);
+    copyToClipboard(prompt);
+  }, [state.files, state.annotations]);
+
   const handleFileClick = useCallback((filePath: string) => {
     setFocusedFile(filePath);
     setScrollToFile(filePath);
   }, []);
 
-  // Text selection handling for line-specific reviews
+  // Line click handler from DiffViewer
+  const handleLineClick = useCallback(
+    (filePath: string, hunkIndex: number, lineNo: number, lineContent: string, rect: DOMRect) => {
+      const key = getHunkKey(filePath, hunkIndex);
+      dispatch({ type: "SET_FOCUSED_HUNK", key });
+      setSelectionToolbar({
+        x: rect.left + rect.width / 2,
+        y: rect.top - 8,
+        filePath,
+        hunkIndex,
+        selectedText: lineContent,
+        startLine: lineNo,
+        endLine: lineNo,
+      });
+    },
+    [dispatch],
+  );
+
+  // Text selection handling
   useEffect(() => {
     const panel = diffPanelRef.current;
     if (!panel) return;
@@ -221,9 +253,8 @@ function App() {
 
     panel.addEventListener("mouseup", handleMouseUp);
     return () => panel.removeEventListener("mouseup", handleMouseUp);
-  }, []);
+  }, [loading]);
 
-  // Clear selection toolbar on outside click
   useEffect(() => {
     if (!selectionToolbar) return;
     function handleClick(e: MouseEvent) {
@@ -236,7 +267,6 @@ function App() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [selectionToolbar]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName.toLowerCase();
@@ -325,7 +355,7 @@ function App() {
         <div className="file-tree-panel">
           <FileTree
             files={state.files}
-            reviews={state.reviews}
+            annotations={state.annotations}
             focusedFile={focusedFile}
             onFileClick={handleFileClick}
           />
@@ -333,9 +363,11 @@ function App() {
         <div className="diff-panel" ref={diffPanelRef}>
           <DiffViewer
             files={state.files}
-            reviews={state.reviews}
+            annotations={state.annotations}
             focusedHunkKey={state.focusedHunkKey}
             onHunkAction={handleHunkAction}
+            onLineClick={handleLineClick}
+            onRemoveAnnotation={handleRemoveAnnotation}
             scrollToFile={scrollToFile}
           />
           {activeFeedback && (

@@ -87,6 +87,11 @@
   display: flex;
   line-height: 20px;
   font-size: 13px;
+  cursor: pointer;
+}
+
+.diff-line:hover {
+  filter: brightness(1.1);
 }
 
 .diff-line.addition {
@@ -95,6 +100,10 @@
 
 .diff-line.deletion {
   background-color: var(--color-deletion);
+}
+
+.diff-line.has-annotation {
+  border-left: 2px solid var(--color-accent);
 }
 
 .line-gutter {
@@ -119,16 +128,43 @@
 }
 
 .annotation-badge {
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 4px 0 4px 56px;
   padding: 2px 10px;
   border-radius: 10px;
   font-size: 12px;
-  cursor: pointer;
-  max-width: 400px;
+  max-width: 500px;
+}
+
+.annotation-badge .annotation-line-ref {
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.annotation-badge .annotation-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.annotation-badge .annotation-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.annotation-badge .annotation-remove:hover {
+  opacity: 1;
 }
 
 .annotation-badge.badge-commented {

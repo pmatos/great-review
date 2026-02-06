@@ -8,7 +8,7 @@ import {
 import {
   DiffFile,
   DiffHunk,
-  HunkReview,
+  HunkAnnotation,
   LineType,
   FileStatus,
 } from "./types";
@@ -38,6 +38,14 @@ function makeFile(path: string, hunkCount = 1): DiffFile {
     );
   }
   return { path, old_path: null, hunks, status: FileStatus.Modified };
+}
+
+let idCounter = 0;
+function ann(overrides: Partial<HunkAnnotation> & Pick<HunkAnnotation, "decision">): HunkAnnotation {
+  return {
+    id: `test-${++idCounter}`,
+    ...overrides,
+  };
 }
 
 describe("getHunkKey", () => {
@@ -72,13 +80,13 @@ describe("generatePrompt", () => {
 
   it("returns all-approved message when all hunks approved", () => {
     const files = [makeFile("src/a.ts", 2), makeFile("src/b.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/a.ts::0": { decision: "approved" },
-      "src/a.ts::1": { decision: "approved" },
-      "src/b.ts::0": { decision: "approved" },
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/a.ts::0": [ann({ decision: "approved" })],
+      "src/a.ts::1": [ann({ decision: "approved" })],
+      "src/b.ts::0": [ann({ decision: "approved" })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toBe(
       "I've reviewed your changes. All 3 hunks approved as-is. Looks good!"
     );
@@ -94,16 +102,16 @@ describe("generatePrompt", () => {
 
   it("generates comment with selected text", () => {
     const files = [makeFile("src/auth.ts", 2)];
-    const reviews: Record<string, HunkReview> = {
-      "src/auth.ts::0": { decision: "approved" },
-      "src/auth.ts::1": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/auth.ts::0": [ann({ decision: "approved" })],
+      "src/auth.ts::1": [ann({
         decision: "commented",
         comment: "This looks suspicious",
         selectedText: "doAuth()",
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("1 hunks approved as-is.");
     expect(result).toContain("The following need attention:");
     expect(result).toContain("## src/auth.ts — Hunk @@ -11,3 +11,4 @@");
@@ -113,14 +121,14 @@ describe("generatePrompt", () => {
 
   it("generates comment without selected text", () => {
     const files = [makeFile("src/auth.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/auth.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/auth.ts::0": [ann({
         decision: "commented",
         comment: "General remark",
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("**Comment**:");
     expect(result).toContain("General remark");
     expect(result).not.toContain("**Comment** on");
@@ -128,15 +136,15 @@ describe("generatePrompt", () => {
 
   it("generates rejection with propose alternative", () => {
     const files = [makeFile("src/db.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/db.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/db.ts::0": [ann({
         decision: "rejected",
         rejectMode: "propose_alternative",
         comment: "Use a connection pool instead",
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("**Rejected** (propose alternative):");
     expect(result).toContain("```diff");
     expect(result).toContain("Use a connection pool instead");
@@ -144,15 +152,15 @@ describe("generatePrompt", () => {
 
   it("generates rejection with request other possibilities", () => {
     const files = [makeFile("src/db.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/db.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/db.ts::0": [ann({
         decision: "rejected",
         rejectMode: "request_possibilities",
         comment: "Show me other approaches",
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("**Rejected** (request other possibilities):");
     expect(result).toContain("```diff");
     expect(result).toContain("Show me other approaches");
@@ -160,21 +168,21 @@ describe("generatePrompt", () => {
 
   it("produces mixed output with approved count and actionable items", () => {
     const files = [makeFile("src/a.ts", 3), makeFile("src/b.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/a.ts::0": { decision: "approved" },
-      "src/a.ts::1": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/a.ts::0": [ann({ decision: "approved" })],
+      "src/a.ts::1": [ann({
         decision: "commented",
         comment: "Needs docs",
-      },
-      "src/a.ts::2": {
+      })],
+      "src/a.ts::2": [ann({
         decision: "rejected",
         rejectMode: "propose_alternative",
         comment: "Try X instead",
-      },
-      "src/b.ts::0": { decision: "approved" },
+      })],
+      "src/b.ts::0": [ann({ decision: "approved" })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toMatch(/^I've reviewed your changes\. 2 hunks approved as-is\./);
     expect(result).toContain("The following need attention:");
     expect(result).toContain("## src/a.ts — Hunk");
@@ -185,66 +193,114 @@ describe("generatePrompt", () => {
 
   it("generates comment with selected lines range", () => {
     const files = [makeFile("src/auth.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/auth.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/auth.ts::0": [ann({
         decision: "commented",
         comment: "This logic is wrong",
         selectedText: "doAuth()",
         selectedLines: { start: 1, end: 3 },
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("**Comment** on lines 1-3 (`doAuth()`):");
     expect(result).toContain("This logic is wrong");
   });
 
   it("generates comment with single selected line", () => {
     const files = [makeFile("src/auth.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/auth.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/auth.ts::0": [ann({
         decision: "commented",
         comment: "Bad name",
         selectedLines: { start: 2, end: 2 },
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("**Comment** on line 2:");
     expect(result).toContain("Bad name");
   });
 
   it("generates rejection with selectedText shown", () => {
     const files = [makeFile("src/db.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/db.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/db.ts::0": [ann({
         decision: "rejected",
         rejectMode: "propose_alternative",
         comment: "Use pool",
         selectedText: "createConnection()",
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("**Rejected** (propose alternative) (`createConnection()`):");
     expect(result).toContain("Use pool");
   });
 
   it("generates rejection with selectedLines filtering diff", () => {
     const files = [makeFile("src/db.ts", 1)];
-    const reviews: Record<string, HunkReview> = {
-      "src/db.ts::0": {
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/db.ts::0": [ann({
         decision: "rejected",
         rejectMode: "propose_alternative",
         comment: "Change this",
         selectedLines: { start: 2, end: 2 },
-      },
+      })],
     };
 
-    const result = generatePrompt(files, reviews);
+    const result = generatePrompt(files, annotations);
     expect(result).toContain("```diff");
-    // Line 2 in the default hunk is a deletion (old_line_no=2) and an addition (new_line_no=2)
-    // The filtered diff should include only those lines
     expect(result).not.toContain("context line");
+  });
+
+  // New tests for multi-annotation support
+
+  it("handles multiple annotations on same hunk", () => {
+    const files = [makeFile("src/foo.ts", 1)];
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/foo.ts::0": [
+        ann({ decision: "approved", selectedLines: { start: 1, end: 1 } }),
+        ann({ decision: "commented", comment: "Rename this", selectedLines: { start: 2, end: 2 } }),
+        ann({ decision: "rejected", rejectMode: "propose_alternative", comment: "Wrong approach", selectedLines: { start: 3, end: 3 } }),
+      ],
+    };
+
+    const result = generatePrompt(files, annotations);
+    expect(result).toContain("0 hunks approved as-is.");
+    expect(result).toContain("**Approved** on line 1");
+    expect(result).toContain("**Comment** on line 2:");
+    expect(result).toContain("Rename this");
+    expect(result).toContain("**Rejected** (propose alternative):");
+    expect(result).toContain("Wrong approach");
+  });
+
+  it("hunk with only line-level approvals counts as approved", () => {
+    const files = [makeFile("src/foo.ts", 1)];
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/foo.ts::0": [
+        ann({ decision: "approved", selectedLines: { start: 1, end: 3 } }),
+      ],
+    };
+
+    const result = generatePrompt(files, annotations);
+    expect(result).toBe(
+      "I've reviewed your changes. All 1 hunks approved as-is. Looks good!"
+    );
+  });
+
+  it("mixes hunk-level and line-level annotations", () => {
+    const files = [makeFile("src/foo.ts", 1)];
+    const annotations: Record<string, HunkAnnotation[]> = {
+      "src/foo.ts::0": [
+        ann({ decision: "approved" }),
+        ann({ decision: "commented", comment: "But fix this line", selectedLines: { start: 2, end: 2 } }),
+      ],
+    };
+
+    const result = generatePrompt(files, annotations);
+    expect(result).toContain("Hunk approved as-is.");
+    expect(result).toContain("**Comment** on line 2:");
+    expect(result).toContain("But fix this line");
   });
 });

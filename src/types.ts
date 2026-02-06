@@ -43,13 +43,17 @@ export interface RepoInfo {
 export type ReviewDecision = "approved" | "commented" | "rejected";
 export type RejectMode = "propose_alternative" | "request_possibilities";
 
-export interface HunkReview {
+export interface HunkAnnotation {
+  id: string;
   decision: ReviewDecision;
   comment?: string;
   rejectMode?: RejectMode;
   selectedText?: string;
   selectedLines?: { start: number; end: number };
 }
+
+/** @deprecated Use HunkAnnotation instead */
+export type HunkReview = HunkAnnotation;
 
 export interface FileTreeEntry {
   path: string;

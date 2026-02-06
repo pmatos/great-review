@@ -1,4 +1,4 @@
-import { DiffFile, DiffHunk, HunkReview, LineType } from "./types";
+import { DiffFile, DiffHunk, HunkAnnotation, LineType } from "./types";
 
 export function formatSelectedText(text: string): string {
   return `\`${text}\``;
@@ -31,59 +31,81 @@ export function getHunkKey(filePath: string, hunkIndex: number): string {
 
 export function generatePrompt(
   files: DiffFile[],
-  reviews: Record<string, HunkReview>
+  annotations: Record<string, HunkAnnotation[]>
 ): string {
   if (files.length === 0) return "";
 
-  let approvedCount = 0;
+  let approvedHunks = 0;
   const actionableItems: string[] = [];
 
   for (const file of files) {
     for (let i = 0; i < file.hunks.length; i++) {
       const hunk = file.hunks[i];
       const key = getHunkKey(file.path, i);
-      const review = reviews[key];
+      const anns = annotations[key];
 
-      if (!review || review.decision === "approved") {
-        approvedCount++;
+      if (!anns || anns.length === 0) {
+        approvedHunks++;
+        continue;
+      }
+
+      // Check if all annotations for this hunk are approvals
+      const allApproved = anns.every((a) => a.decision === "approved");
+      if (allApproved) {
+        approvedHunks++;
         continue;
       }
 
       const heading = `## ${file.path} — Hunk ${hunk.header}`;
+      const items: string[] = [];
 
-      if (review.decision === "commented") {
-        const linePart = review.selectedLines
-          ? review.selectedLines.start === review.selectedLines.end
-            ? ` on line ${review.selectedLines.start}`
-            : ` on lines ${review.selectedLines.start}-${review.selectedLines.end}`
+      // Count hunk-level approvals (no selectedLines) separately
+      const hunkApprovals = anns.filter((a) => a.decision === "approved" && !a.selectedLines);
+      const lineApprovals = anns.filter((a) => a.decision === "approved" && a.selectedLines);
+
+      if (hunkApprovals.length > 0) {
+        items.push("Hunk approved as-is.");
+      }
+
+      for (const ann of lineApprovals) {
+        const linePart = ann.selectedLines!.start === ann.selectedLines!.end
+          ? ` on line ${ann.selectedLines!.start}`
+          : ` on lines ${ann.selectedLines!.start}-${ann.selectedLines!.end}`;
+        const textPart = ann.selectedText ? ` (\`${ann.selectedText}\`)` : "";
+        items.push(`**Approved**${linePart}${textPart}`);
+      }
+
+      for (const ann of anns.filter((a) => a.decision === "commented")) {
+        const linePart = ann.selectedLines
+          ? ann.selectedLines.start === ann.selectedLines.end
+            ? ` on line ${ann.selectedLines.start}`
+            : ` on lines ${ann.selectedLines.start}-${ann.selectedLines.end}`
           : "";
-        const textPart = review.selectedText ? ` (\`${review.selectedText}\`)` : "";
-        actionableItems.push(
-          `${heading}\n**Comment**${linePart}${textPart}:\n${review.comment ?? ""}`
-        );
-      } else if (review.decision === "rejected") {
-        const diffBlock = "```diff\n" + getHunkDiffText(hunk, review.selectedLines) + "\n```";
-        const textPart = review.selectedText ? ` (\`${review.selectedText}\`)` : "";
+        const textPart = ann.selectedText ? ` (\`${ann.selectedText}\`)` : "";
+        items.push(`**Comment**${linePart}${textPart}:\n${ann.comment ?? ""}`);
+      }
 
-        if (review.rejectMode === "propose_alternative") {
-          actionableItems.push(
-            `${heading}\n**Rejected** (propose alternative)${textPart}:\n${diffBlock}\n${review.comment ?? ""}`
-          );
+      for (const ann of anns.filter((a) => a.decision === "rejected")) {
+        const diffBlock = "```diff\n" + getHunkDiffText(hunk, ann.selectedLines) + "\n```";
+        const textPart = ann.selectedText ? ` (\`${ann.selectedText}\`)` : "";
+
+        if (ann.rejectMode === "propose_alternative") {
+          items.push(`**Rejected** (propose alternative)${textPart}:\n${diffBlock}\n${ann.comment ?? ""}`);
         } else {
-          actionableItems.push(
-            `${heading}\n**Rejected** (request other possibilities)${textPart}:\n${diffBlock}\n${review.comment ?? ""}`
-          );
+          items.push(`**Rejected** (request other possibilities)${textPart}:\n${diffBlock}\n${ann.comment ?? ""}`);
         }
       }
+
+      actionableItems.push(`${heading}\n${items.join("\n\n")}`);
     }
   }
 
   if (actionableItems.length === 0) {
-    return `I've reviewed your changes. All ${approvedCount} hunks approved as-is. Looks good!`;
+    return `I've reviewed your changes. All ${approvedHunks} hunks approved as-is. Looks good!`;
   }
 
   const parts = [
-    `I've reviewed your changes. ${approvedCount} hunks approved as-is.`,
+    `I've reviewed your changes. ${approvedHunks} hunks approved as-is.`,
     "",
     "The following need attention:",
     "",
