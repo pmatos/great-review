@@ -107,7 +107,7 @@ describe("generatePrompt", () => {
     expect(result).toContain("1 hunks approved as-is.");
     expect(result).toContain("The following need attention:");
     expect(result).toContain("## src/auth.ts — Hunk @@ -11,3 +11,4 @@");
-    expect(result).toContain("**Comment** on `doAuth()`:");
+    expect(result).toContain("**Comment** (`doAuth()`):");
     expect(result).toContain("This looks suspicious");
   });
 
@@ -181,5 +181,70 @@ describe("generatePrompt", () => {
     expect(result).toContain("**Comment**:");
     expect(result).toContain("**Rejected** (propose alternative):");
     expect(result).not.toContain("src/b.ts");
+  });
+
+  it("generates comment with selected lines range", () => {
+    const files = [makeFile("src/auth.ts", 1)];
+    const reviews: Record<string, HunkReview> = {
+      "src/auth.ts::0": {
+        decision: "commented",
+        comment: "This logic is wrong",
+        selectedText: "doAuth()",
+        selectedLines: { start: 1, end: 3 },
+      },
+    };
+
+    const result = generatePrompt(files, reviews);
+    expect(result).toContain("**Comment** on lines 1-3 (`doAuth()`):");
+    expect(result).toContain("This logic is wrong");
+  });
+
+  it("generates comment with single selected line", () => {
+    const files = [makeFile("src/auth.ts", 1)];
+    const reviews: Record<string, HunkReview> = {
+      "src/auth.ts::0": {
+        decision: "commented",
+        comment: "Bad name",
+        selectedLines: { start: 2, end: 2 },
+      },
+    };
+
+    const result = generatePrompt(files, reviews);
+    expect(result).toContain("**Comment** on line 2:");
+    expect(result).toContain("Bad name");
+  });
+
+  it("generates rejection with selectedText shown", () => {
+    const files = [makeFile("src/db.ts", 1)];
+    const reviews: Record<string, HunkReview> = {
+      "src/db.ts::0": {
+        decision: "rejected",
+        rejectMode: "propose_alternative",
+        comment: "Use pool",
+        selectedText: "createConnection()",
+      },
+    };
+
+    const result = generatePrompt(files, reviews);
+    expect(result).toContain("**Rejected** (propose alternative) (`createConnection()`):");
+    expect(result).toContain("Use pool");
+  });
+
+  it("generates rejection with selectedLines filtering diff", () => {
+    const files = [makeFile("src/db.ts", 1)];
+    const reviews: Record<string, HunkReview> = {
+      "src/db.ts::0": {
+        decision: "rejected",
+        rejectMode: "propose_alternative",
+        comment: "Change this",
+        selectedLines: { start: 2, end: 2 },
+      },
+    };
+
+    const result = generatePrompt(files, reviews);
+    expect(result).toContain("```diff");
+    // Line 2 in the default hunk is a deletion (old_line_no=2) and an addition (new_line_no=2)
+    // The filtered diff should include only those lines
+    expect(result).not.toContain("context line");
   });
 });

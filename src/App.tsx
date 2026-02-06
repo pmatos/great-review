@@ -17,6 +17,8 @@ interface ActiveFeedback {
   hunkIndex: number;
   mode: "comment" | "reject";
   selectedText?: string;
+  startLine: number | null;
+  endLine: number | null;
 }
 
 interface SelectionToolbar {
@@ -25,6 +27,8 @@ interface SelectionToolbar {
   filePath: string;
   hunkIndex: number;
   selectedText: string;
+  startLine: number | null;
+  endLine: number | null;
 }
 
 function App() {
@@ -91,15 +95,16 @@ function App() {
         setActiveFeedback(null);
         setSelectionToolbar(null);
       } else {
+        const hasSelection = selectionToolbar?.hunkIndex === hunkIndex &&
+            selectionToolbar?.filePath === filePath;
         setActiveFeedback({
           hunkKey: key,
           filePath,
           hunkIndex,
           mode: action === "comment" ? "comment" : "reject",
-          selectedText: selectionToolbar?.hunkIndex === hunkIndex &&
-            selectionToolbar?.filePath === filePath
-            ? selectionToolbar.selectedText
-            : undefined,
+          selectedText: hasSelection ? selectionToolbar.selectedText : undefined,
+          startLine: hasSelection ? selectionToolbar.startLine : null,
+          endLine: hasSelection ? selectionToolbar.endLine : null,
         });
         setSelectionToolbar(null);
       }
@@ -111,18 +116,21 @@ function App() {
   const handleFeedbackSubmit = useCallback(
     (comment: string, rejectMode?: RejectMode) => {
       if (!activeFeedback) return;
-      const { hunkKey, mode, selectedText } = activeFeedback;
+      const { hunkKey, mode, selectedText, startLine, endLine } = activeFeedback;
+      const selectedLines = startLine != null && endLine != null
+        ? { start: startLine, end: endLine }
+        : undefined;
       if (mode === "comment") {
         dispatch({
           type: "SET_REVIEW",
           key: hunkKey,
-          review: { decision: "commented", comment, selectedText },
+          review: { decision: "commented", comment, selectedText, selectedLines },
         });
       } else {
         dispatch({
           type: "SET_REVIEW",
           key: hunkKey,
-          review: { decision: "rejected", comment, rejectMode, selectedText },
+          review: { decision: "rejected", comment, rejectMode, selectedText, selectedLines },
         });
       }
       setActiveFeedback(null);
@@ -147,6 +155,24 @@ function App() {
     const panel = diffPanelRef.current;
     if (!panel) return;
 
+    function findLineElement(node: Node | null): HTMLElement | null {
+      while (node && node !== panel) {
+        if (node instanceof HTMLElement && node.classList.contains("diff-line")) {
+          return node;
+        }
+        node = node.parentNode;
+      }
+      return null;
+    }
+
+    function getLineNo(el: HTMLElement): number | null {
+      const newLine = el.dataset.lineNew;
+      if (newLine && newLine !== "") return parseInt(newLine, 10);
+      const oldLine = el.dataset.lineOld;
+      if (oldLine && oldLine !== "") return parseInt(oldLine, 10);
+      return null;
+    }
+
     function handleMouseUp() {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
@@ -169,6 +195,16 @@ function App() {
 
       if (!fileAttr || hunkAttr === null) return;
 
+      const anchorLine = findLineElement(sel.anchorNode);
+      const focusLine = findLineElement(sel.focusNode);
+      let startLine: number | null = null;
+      let endLine: number | null = null;
+      if (anchorLine) startLine = getLineNo(anchorLine);
+      if (focusLine) endLine = getLineNo(focusLine);
+      if (startLine !== null && endLine !== null && startLine > endLine) {
+        [startLine, endLine] = [endLine, startLine];
+      }
+
       const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
 
@@ -178,6 +214,8 @@ function App() {
         filePath: fileAttr,
         hunkIndex: parseInt(hunkAttr, 10),
         selectedText,
+        startLine,
+        endLine,
       });
     }
 
@@ -304,6 +342,11 @@ function App() {
             <div className="feedback-overlay">
               <div className="hunk-reference">
                 {activeFeedback.filePath} — hunk #{activeFeedback.hunkIndex}
+                {activeFeedback.startLine != null && activeFeedback.endLine != null && (
+                  activeFeedback.startLine === activeFeedback.endLine
+                    ? <>, line {activeFeedback.startLine}</>
+                    : <>, lines {activeFeedback.startLine}-{activeFeedback.endLine}</>
+                )}
                 {activeFeedback.selectedText && (
                   <> — selected: "{activeFeedback.selectedText.slice(0, 40)}
                   {activeFeedback.selectedText.length > 40 ? "..." : ""}"</>

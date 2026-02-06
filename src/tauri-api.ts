@@ -7,7 +7,7 @@ export async function fetchDiff(range?: string): Promise<DiffFile[]> {
 }
 
 export async function fetchRepoInfo(): Promise<RepoInfo> {
-  return invoke<RepoInfo>("get_repo_info");
+  return invoke<RepoInfo>("get_repo_info_cmd");
 }
 
 export async function fetchStartupArgs(): Promise<string | null> {

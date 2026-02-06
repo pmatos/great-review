@@ -4,8 +4,14 @@ export function formatSelectedText(text: string): string {
   return `\`${text}\``;
 }
 
-export function getHunkDiffText(hunk: DiffHunk): string {
-  return hunk.lines
+export function getHunkDiffText(hunk: DiffHunk, selectedLines?: { start: number; end: number }): string {
+  const lines = selectedLines
+    ? hunk.lines.filter((line) => {
+        const lineNo = line.new_line_no ?? line.old_line_no;
+        return lineNo != null && lineNo >= selectedLines.start && lineNo <= selectedLines.end;
+      })
+    : hunk.lines;
+  return lines
     .map((line) => {
       switch (line.line_type) {
         case LineType.Addition:
@@ -46,25 +52,26 @@ export function generatePrompt(
       const heading = `## ${file.path} — Hunk ${hunk.header}`;
 
       if (review.decision === "commented") {
-        if (review.selectedText) {
-          actionableItems.push(
-            `${heading}\n**Comment** on \`${review.selectedText}\`:\n${review.comment ?? ""}`
-          );
-        } else {
-          actionableItems.push(
-            `${heading}\n**Comment**:\n${review.comment ?? ""}`
-          );
-        }
+        const linePart = review.selectedLines
+          ? review.selectedLines.start === review.selectedLines.end
+            ? ` on line ${review.selectedLines.start}`
+            : ` on lines ${review.selectedLines.start}-${review.selectedLines.end}`
+          : "";
+        const textPart = review.selectedText ? ` (\`${review.selectedText}\`)` : "";
+        actionableItems.push(
+          `${heading}\n**Comment**${linePart}${textPart}:\n${review.comment ?? ""}`
+        );
       } else if (review.decision === "rejected") {
-        const diffBlock = "```diff\n" + getHunkDiffText(hunk) + "\n```";
+        const diffBlock = "```diff\n" + getHunkDiffText(hunk, review.selectedLines) + "\n```";
+        const textPart = review.selectedText ? ` (\`${review.selectedText}\`)` : "";
 
         if (review.rejectMode === "propose_alternative") {
           actionableItems.push(
-            `${heading}\n**Rejected** (propose alternative):\n${diffBlock}\n${review.comment ?? ""}`
+            `${heading}\n**Rejected** (propose alternative)${textPart}:\n${diffBlock}\n${review.comment ?? ""}`
           );
         } else {
           actionableItems.push(
-            `${heading}\n**Rejected** (request other possibilities):\n${diffBlock}\n${review.comment ?? ""}`
+            `${heading}\n**Rejected** (request other possibilities)${textPart}:\n${diffBlock}\n${review.comment ?? ""}`
           );
         }
       }
