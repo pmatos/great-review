@@ -6,7 +6,7 @@ authors = ["Paulo Matos"]
 edition = "2021"
 
 [[bin]]
-name = "gr"
+name = "greview"
 path = "src/main.rs"
 
 [lib]

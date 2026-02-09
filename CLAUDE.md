@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Great Review (`gr`) is a Tauri v2 desktop app for reviewing AI-generated code changes hunk-by-hunk. It parses git diffs, presents them in a two-panel UI, and generates a minimal prompt to paste back into Claude Code. The binary is called `gr`.
+Great Review (`greview`) is a Tauri v2 desktop app for reviewing AI-generated code changes hunk-by-hunk. It parses git diffs, presents them in a two-panel UI, and generates a minimal prompt to paste back into Claude Code. The binary is called `greview`.
 
 ## Commands
 
@@ -33,7 +33,7 @@ cargo fmt                    # format
 
 ```bash
 npm run tauri dev             # dev mode with hot reload (runs both frontend + backend)
-npm run tauri build           # production build → produces gr binary
+npm run tauri build           # production build → produces greview binary
 ```
 
 ## Architecture
@@ -64,7 +64,7 @@ This is a Tauri v2 app with two halves communicating over IPC:
 
 ## Key Gotchas
 
-- The binary name is `gr` (set in `Cargo.toml [[bin]]`), but the lib crate is `great_review_lib`. `main.rs` calls `great_review_lib::run()`.
+- The binary name is `greview` (set in `Cargo.toml [[bin]]`), but the lib crate is `great_review_lib`. `main.rs` calls `great_review_lib::run()`.
 - The frontend must be built (`npm run build`) before `cargo build` works, because Tauri embeds the `dist/` directory. Use `npm run tauri dev` during development to avoid this.
 - Tauri v2 uses plugins for CLI args (`tauri-plugin-cli`) and clipboard (`tauri-plugin-clipboard-manager`). These are registered in `lib.rs` and configured in `tauri.conf.json` (CLI args) and `capabilities/default.json` (permissions).
 - All review state is in-memory only — no persistence, no database. Closing the window loses all reviews.

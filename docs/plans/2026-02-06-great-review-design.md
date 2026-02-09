@@ -1,4 +1,4 @@
-# Great Review (gr) — Design Document
+# Great Review (greview) — Design Document
 
 ## Overview
 
@@ -7,7 +7,7 @@ A local desktop app for reviewing AI-generated code changes hunk-by-hunk, produc
 ## Workflow
 
 1. Claude Code makes changes to a codebase.
-2. User runs `gr` (working tree diff) or `gr HEAD~3..HEAD` (commit range).
+2. User runs `greview` (working tree diff) or `greview HEAD~3..HEAD` (commit range).
 3. Tauri launches a native window showing the diff broken into hunks.
 4. User reviews each hunk: approve, comment, or reject (with alternative or request for other possibilities).
 5. User clicks "Copy Prompt" — a minimal prompt is copied to clipboard containing only actionable items.
@@ -17,7 +17,7 @@ A local desktop app for reviewing AI-generated code changes hunk-by-hunk, produc
 
 ```
 ┌─────────────────────────────────────┐
-│            Tauri App (gr)           │
+│         Tauri App (greview)         │
 │                                     │
 │  ┌───────────┐    ┌──────────────┐  │
 │  │   Rust    │◀──▶│    React     │  │
@@ -43,8 +43,8 @@ All review state lives in-memory in the browser. No persistence needed. Calls Ru
 
 ### CLI
 
-- `gr` — review working tree diff (unstaged + staged changes).
-- `gr HEAD~3..HEAD` — review a commit range.
+- `greview` — review working tree diff (unstaged + staged changes).
+- `greview HEAD~3..HEAD` — review a commit range.
 
 Tauri handles CLI argument parsing and passes the range to the frontend on startup.
 
@@ -54,7 +54,7 @@ Two-panel layout inspired by GitHub's PR review.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  gr — great-review          main  ●3 files  5/12     │
+│  greview — great-review     main  ●3 files  5/12     │
 ├────────────┬─────────────────────────────────────────┤
 │            │                                         │
 │ ▼ src/     │  src/auth.ts                            │
@@ -197,4 +197,4 @@ Key details:
 - **Tauri v2** — native window, Rust backend, system webview.
 - **Rust** — git diff execution and parsing, CLI argument handling, clipboard.
 - **React** — frontend UI, review state management, prompt generation.
-- **Distribution** — single binary, user runs `gr` from any git repo.
+- **Distribution** — single binary, user runs `greview` from any git repo.

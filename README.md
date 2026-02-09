@@ -1,4 +1,4 @@
-# gr — Great Review
+# greview — Great Review
 
 A desktop app for reviewing AI-generated code changes before they land. Review each hunk individually, add comments, reject what doesn't look right, then copy a single prompt back into Claude Code to continue the conversation.
 
@@ -11,18 +11,18 @@ npm install
 npm run tauri build
 ```
 
-The binary is at `src-tauri/target/release/gr`. Copy it somewhere on your `PATH`.
+The binary is at `src-tauri/target/release/greview`. Copy it somewhere on your `PATH`.
 
 ## Usage
 
-Run `gr` from any git repository:
+Run `greview` from any git repository:
 
 ```bash
 # Review uncommitted changes (staged + unstaged)
-gr
+greview
 
 # Review a specific commit range
-gr HEAD~3..HEAD
+greview HEAD~3..HEAD
 ```
 
 A window opens showing all changed hunks grouped by file.
