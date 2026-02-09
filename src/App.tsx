@@ -50,14 +50,15 @@ function App() {
     let cancelled = false;
     async function init() {
       try {
-        const [range, repoInfo] = await Promise.all([
-          fetchStartupArgs(),
-          fetchRepoInfo(),
-        ]);
+        const args = await fetchStartupArgs();
+        if (cancelled) return;
+
+        const remote = args.remote ?? undefined;
+        const repoInfo = await fetchRepoInfo(remote);
         if (cancelled) return;
         dispatch({ type: "SET_REPO_INFO", info: repoInfo });
 
-        const files = await fetchDiff(range ?? undefined);
+        const files = await fetchDiff(args.range ?? undefined, remote);
         if (cancelled) return;
         dispatch({ type: "SET_DIFF", files });
         setLoading(false);

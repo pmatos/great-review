@@ -40,6 +40,11 @@ export interface RepoInfo {
   path: string;
 }
 
+export interface StartupArgs {
+  range: string | null;
+  remote: string | null;
+}
+
 export type ReviewDecision = "approved" | "commented" | "rejected";
 export type RejectMode = "propose_alternative" | "request_possibilities";
 

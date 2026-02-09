@@ -195,6 +195,48 @@ pub fn parse_unified_diff(diff_text: &str) -> Vec<DiffFile> {
     files
 }
 
+pub fn parse_remote_path(remote: &str) -> Result<(&str, &str), String> {
+    remote.split_once(':').ok_or_else(|| {
+        format!(
+            "Invalid remote path '{}'. Expected format: host:/path/to/repo or user@host:/path/to/repo",
+            remote
+        )
+    })
+}
+
+pub fn run_remote_git_diff(remote: &str, range: Option<&str>) -> Result<String, String> {
+    let (host, path) = parse_remote_path(remote)?;
+
+    let git_cmd = match range {
+        Some(r) => format!("cd '{}' && git diff {}", path, r),
+        None => format!("cd '{}' && git diff HEAD", path),
+    };
+
+    let output = Command::new("ssh")
+        .args(["-o", "ConnectTimeout=10", "-o", "BatchMode=yes", host, &git_cmd])
+        .output()
+        .map_err(|e| format!("Failed to execute ssh: {}", e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        if stderr.contains("Could not resolve hostname") {
+            Err(format!("Cannot resolve host '{}'. Check the hostname and your network connection.", host))
+        } else if stderr.contains("Connection refused") || stderr.contains("Connection timed out") {
+            Err(format!("Cannot connect to '{}'. Ensure the machine is reachable and SSH is running.", host))
+        } else if stderr.contains("Permission denied") {
+            Err(format!("SSH authentication failed for '{}'. Check your SSH keys or credentials.", host))
+        } else if stderr.contains("No such file or directory") || stderr.contains("not a directory") {
+            Err(format!("Remote path '{}' not found on '{}'.", path, host))
+        } else if stderr.contains("not a git repository") {
+            Err(format!("'{}' on '{}' is not a git repository.", path, host))
+        } else {
+            Err(format!("Remote command failed: {}", stderr.trim()))
+        }
+    }
+}
+
 pub fn run_git_diff(range: Option<&str>, repo_path: &str) -> Result<String, String> {
     let args = match range {
         Some(r) => vec!["diff", r],
@@ -471,6 +513,41 @@ index abc..def 100644
         assert_eq!(lines[0].content, "old content");
         assert_eq!(lines[1].line_type, LineType::Addition);
         assert_eq!(lines[1].content, "new content");
+    }
+
+    #[test]
+    fn test_parse_remote_path_valid() {
+        let (host, path) = parse_remote_path("t14s.local:/home/user/dev/repo").unwrap();
+        assert_eq!(host, "t14s.local");
+        assert_eq!(path, "/home/user/dev/repo");
+    }
+
+    #[test]
+    fn test_parse_remote_path_with_user() {
+        let (host, path) = parse_remote_path("user@myhost:/opt/code").unwrap();
+        assert_eq!(host, "user@myhost");
+        assert_eq!(path, "/opt/code");
+    }
+
+    #[test]
+    fn test_parse_remote_path_missing_colon() {
+        let result = parse_remote_path("no-colon-here");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid remote path"));
+    }
+
+    #[test]
+    fn test_parse_remote_path_colon_at_end() {
+        let (host, path) = parse_remote_path("host:").unwrap();
+        assert_eq!(host, "host");
+        assert_eq!(path, "");
+    }
+
+    #[test]
+    fn test_parse_remote_path_multiple_colons() {
+        let (host, path) = parse_remote_path("host:/path:with:colons").unwrap();
+        assert_eq!(host, "host");
+        assert_eq!(path, "/path:with:colons");
     }
 
     #[test]

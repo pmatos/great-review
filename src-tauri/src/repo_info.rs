@@ -53,6 +53,41 @@ pub fn get_repo_info(repo_path: &str) -> Result<RepoInfo, String> {
     })
 }
 
+pub fn get_remote_repo_info(remote: &str) -> Result<RepoInfo, String> {
+    let (host, path) = crate::diff_parser::parse_remote_path(remote)?;
+
+    let cmd = format!(
+        "cd '{}' && git rev-parse --show-toplevel && git rev-parse --abbrev-ref HEAD",
+        path
+    );
+
+    let output = Command::new("ssh")
+        .args(["-o", "ConnectTimeout=10", "-o", "BatchMode=yes", host, &cmd])
+        .output()
+        .map_err(|e| format!("Failed to execute ssh: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(format!("Failed to get remote repo info: {}", stderr.trim()));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let mut lines = stdout.trim().lines();
+    let root_path = lines.next().unwrap_or("").to_string();
+    let branch = lines.next().unwrap_or("").to_string();
+
+    let name = std::path::Path::new(&root_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| root_path.clone());
+
+    Ok(RepoInfo {
+        name,
+        branch,
+        path: remote.to_string(),
+    })
+}
+
 pub fn get_diff_range_from_args() -> Option<String> {
     std::env::args().nth(1).filter(|arg| !arg.starts_with('-'))
 }

@@ -40,6 +40,12 @@
           "index": 1,
           "takesValue": true,
           "required": false
+        },
+        {
+          "name": "remote",
+          "short": "R",
+          "takesValue": true,
+          "required": false
         }
       ]
     }
